@@ -1,0 +1,68 @@
+# Ononogbo Nnaemeka .C
+# Melting and cooling process (Casting) of Al3%Cu
+#------------Initiation
+clear
+units         metal
+dimension     3
+boundary      p p p
+
+#-------------Variable Definition
+variable material1 string Al
+variable material2 string Zn
+variable library string library.MgAlZn.meam
+variable meampar string AlZn.meam
+variable restfile string Al-10ZnN.rest
+variable writefile string Al-10ZnN.lmpdat
+variable dumpfiile string dump.Al-10Zn
+
+
+#------------Read data
+
+atom_style    atomic
+atom_modify   map array
+read_data     Al-10Zn.lmpdat
+#------------Define Interatomic Potential
+pair_style   meam
+pair_coeff    *  * ${library} ${material1} ${material2} ${meampar} ${material1} ${material2}
+timestep 0.002
+#------------Energy minimization
+minimize      1.0e-5 1.0e-7 5000 5000
+thermo 	      100
+thermo_style custom step temp vol press
+dump 1 all custom 500 ${dumpfiile}.* id type x y z 
+log logmd.data
+velocity all create 300 8728007 rot yes mom yes dist gaussian
+
+write_restart AlZn10AV.lmpdat
+#------------fixes
+reset_timestep 0
+compute myRDF all rdf 100 
+fix 1 all ave/time 1 100 1000 c_myRDF[*] file tmp1.rdf mode vector
+
+#here heating rate is 50K/psecs
+fix melting all npt temp 300 1173 $(100*dt) iso 0.0 0.0 $(1000*dt)
+run 20000
+unfix melting
+
+write_restart AlZn10AM.lmpdat
+fix equilibration all nvt temp 1173 1173 $(100*dt)
+run 20000
+unfix equilibration
+
+write_restart AlZn10AE.lmpdat
+#here cooling rate is 5.83K/psecs
+fix cooling all npt temp 1173 300 $(100*dt) iso 0.0 0.0 $(1000*dt)
+run 436500
+unfix cooling
+
+write_restart AlZn10AC.lmpdat
+fix equilibration all npt temp 300 300 $(100*dt) iso 0.0 0.0 $(1000*dt)
+run 100000
+unfix equilibration
+write_data ${writfile}
+write_restart ${restfile}
+
+print "Yo it is all done!"
+
+
+
